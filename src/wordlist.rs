@@ -83,3 +83,66 @@ pub fn load_word_list<P: AsRef<Path>>(path: P) -> Result<Vec<Word>, String> {
 
     Ok(words)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn write_temp(name: &str, contents: &str) -> std::path::PathBuf {
+        // Grabs the OS' temporary directory and appends the desired file name
+        let path = std::env::temp_dir().join(name);
+        // Creates a file with the desired name in the temporary directory
+        let mut f = fs::File::create(&path).unwrap();
+        // Writes the desired content to the file 
+        f.write_all(contents.as_bytes()).unwrap();
+        // Returns the final file path
+        path
+    }
+
+    #[test]
+    fn loads_valid_words() {
+        let path = write_temp("wordlist_test_valid.txt", "crane\nmauri\n\nghoul\n");
+        let words = load_word_list(&path).unwrap();
+        assert_eq!(words.len(), 3);
+        assert_eq!(words[0].as_str(), "crane");
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn rejects_too_long() {
+        let path = write_temp("wordlist_test_bad.txt", "toolong\n");
+        assert!(load_word_list(&path).is_err());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn rejects_too_short() {
+        let path = write_temp("wordlist_test_bad.txt", "hi\n");
+        assert!(load_word_list(&path).is_err());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn normalizes_uppercase() {
+        let path = write_temp("wordlist_test_upper.txt", "CRANE\n");
+        let words = load_word_list(&path).unwrap();
+        assert_eq!(words[0].as_str(), "crane");
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn word_new_rejects_non_lowercase() {
+        assert!(Word::new(*b"CRANE").is_none());
+        assert!(Word::new(*b"cr4ne").is_none());
+        assert!(Word::new(*b"crane").is_some());
+    }
+
+    #[test]
+    fn load_rejects_non_ascii() {
+        // "café" is technically 5 bytes so would only fail when attempting to convert into a Word type
+        let path = write_temp("wordlist_emoji.txt", "café\n");
+        assert!(load_word_list(&path).is_err());
+        let _ = fs::remove_file(path);
+    }
+}
